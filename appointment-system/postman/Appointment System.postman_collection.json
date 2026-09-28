@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Appointment System API",
-    "description": "Local API tests for patient and doctor registration, login, appointment visibility, booking, and role authorization.\n\nBefore running: start the API, run npm run seed:test-users, copy the generated active doctor credentials into doctorPassword, and ensure at least one AVAILABLE appointment exists in appointment_db. Run requests in order. Patient accounts activate immediately; doctor registrations remain PENDING and cannot log in until approved. After verifying a doctor, approve them with: npm run approve:doctor -- doctor@example.com. Each run creates new local test accounts.",
+    "description": "Local API tests for patient and doctor registration, login, appointment visibility, booking, and role authorization.\n\nSetup:\n1. Start MongoDB and configure the project's .env file.\n2. Start the API with npm start (or node server.js).\n3. Run npm run seed:test-users and copy the generated doctor password into the doctorPassword collection variable. The doctor email is doctor@example.test.\n4. Ensure at least one AVAILABLE appointment exists in appointment_db. If needed, insert this sample document into the appointments collection in MongoDB Compass: { \"slotTime\": { \"$date\": \"2026-09-29T10:00:00.000Z\" }, \"status\": \"AVAILABLE\", \"patientId\": null }. Use a different slotTime if that unique time already exists.\n5. Run requests in order. Patient registration generates a unique email and password automatically. Listing available slots saves the first appointmentId automatically; patient login saves the patient token.\n\nDoctor registration in this collection creates a PENDING account and does not provide a token. The doctor login request uses the ACTIVE seeded doctor account. Each run creates new local test accounts.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -11,11 +11,11 @@
     { "key": "patientEmail", "value": "patient@example.test", "type": "string" },
     { "key": "patientPassword", "value": "", "type": "string" },
     { "key": "doctorEmail", "value": "doctor@example.test", "type": "string" },
-    { "key": "doctorPassword", "value": "", "type": "string" },
+    { "key": "doctorPassword", "value": "", "type": "string", "description": "Paste the active doctor password printed by npm run seed:test-users." },
     { "key": "pendingDoctorEmail", "value": "", "type": "string" },
     { "key": "pendingDoctorPassword", "value": "", "type": "string" },
     { "key": "patientSubject", "value": "postman-patient", "type": "string" },
-    { "key": "appointmentId", "value": "", "type": "string" }
+    { "key": "appointmentId", "value": "", "type": "string", "description": "Automatically set to the first AVAILABLE appointment by request 6. Requires an appointment in appointment_db." }
   ],
   "item": [
     {
