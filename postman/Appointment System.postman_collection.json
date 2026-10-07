@@ -1,0 +1,408 @@
+{
+  "info": {
+    "name": "Appointment System API",
+    "description": "Local API tests for patient and doctor registration, login, appointment visibility, booking, and role authorization.\n\nBefore running: start the API, run npm run seed:test-users, copy the generated active doctor credentials into doctorPassword, and ensure at least one AVAILABLE appointment exists in appointment_db. Run requests in order. Patient accounts activate immediately; doctor registrations remain PENDING and cannot log in until approved. After verifying a doctor, approve them with: npm run approve:doctor -- doctor@example.com. Each run creates new local test accounts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "patientToken", "value": "", "type": "string" },
+    { "key": "doctorToken", "value": "", "type": "string" },
+    { "key": "patientEmail", "value": "patient@example.test", "type": "string" },
+    { "key": "patientPassword", "value": "", "type": "string" },
+    { "key": "doctorEmail", "value": "doctor@example.test", "type": "string" },
+    { "key": "doctorPassword", "value": "", "type": "string" },
+    { "key": "pendingDoctorEmail", "value": "", "type": "string" },
+    { "key": "pendingDoctorPassword", "value": "", "type": "string" },
+    { "key": "patientSubject", "value": "postman-patient", "type": "string" },
+    { "key": "appointmentId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "1. Register as patient",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = pm.variables.replaceIn('{{$guid}}');",
+                  "pm.collectionVariables.set('patientEmail', 'postman-' + suffix + '@example.test');",
+                  "pm.collectionVariables.set('patientPassword', 'Postman-test-' + suffix);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('registration creates a patient and returns a token', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.eql(true);",
+                  "    pm.expect(body.user.role).to.eql('patient');",
+                  "    pm.expect(body.user.status).to.eql('ACTIVE');",
+                  "    pm.expect(body.accessToken).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{patientEmail}}\",\n  \"password\": \"{{patientPassword}}\",\n  \"role\": \"patient\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/register" }
+          }
+        },
+        {
+          "name": "2. Register as doctor (approval required)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = pm.variables.replaceIn('{{$guid}}');",
+                  "pm.collectionVariables.set('pendingDoctorEmail', 'postman-doctor-' + suffix + '@example.test');",
+                  "pm.collectionVariables.set('pendingDoctorPassword', 'Postman-test-' + suffix);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('doctor registration waits for approval', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.user.role).to.eql('doctor');",
+                  "    pm.expect(body.user.status).to.eql('PENDING');",
+                  "    pm.expect(body).not.to.have.property('accessToken');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{pendingDoctorEmail}}\",\n  \"password\": \"{{pendingDoctorPassword}}\",\n  \"role\": \"doctor\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/register" }
+          }
+        },
+        {
+          "name": "3. Pending doctor cannot log in",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('pending doctor login is forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{pendingDoctorEmail}}\",\n  \"password\": \"{{pendingDoctorPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login" }
+          }
+        },
+        {
+          "name": "4. Login as patient",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('patient login succeeds and saves token', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.eql(true);",
+                  "    pm.expect(body.user.role).to.eql('patient');",
+                  "    pm.collectionVariables.set('patientToken', body.accessToken);",
+                  "    pm.collectionVariables.set('patientSubject', body.user.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{patientEmail}}\",\n  \"password\": \"{{patientPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login" }
+          }
+        },
+        {
+          "name": "5. Login as doctor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('doctor login succeeds and saves token', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.eql(true);",
+                  "    pm.expect(body.user.role).to.eql('doctor');",
+                  "    pm.collectionVariables.set('doctorToken', body.accessToken);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{doctorEmail}}\",\n  \"password\": \"{{doctorPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Patient",
+      "item": [
+        {
+          "name": "6. List available slots",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns available slots', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.eql(true);",
+                  "    pm.expect(body.count).to.eql(body.slots.length);",
+                  "    if (body.slots.length > 0) {",
+                  "        pm.collectionVariables.set('appointmentId', body.slots[0]._id);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{patientToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/appointments/patient/available" }
+          }
+        },
+        {
+          "name": "7. Book saved slot",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('books the slot for the authenticated patient', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.appointment.status).to.eql('BOOKED');",
+                  "    pm.expect(body.appointment.patientId).to.eql(pm.collectionVariables.get('patientSubject'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{patientToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"appointmentId\": \"{{appointmentId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/appointments/patient/book" }
+          }
+        },
+        {
+          "name": "8. Reject booking the same slot again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('does not double-book an already booked slot', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().success).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{patientToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"appointmentId\": \"{{appointmentId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/appointments/patient/book" }
+          }
+        },
+        {
+          "name": "9. Patient cannot read doctor schedule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('patient role is forbidden from doctor schedule', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{patientToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/appointments/doctor/schedule" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Doctor",
+      "item": [
+        {
+          "name": "10. Read full categorized schedule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('doctor can read the full schedule', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.schedule).to.have.property('booked');",
+                  "    pm.expect(body.schedule).to.have.property('available');",
+                  "    pm.expect(body.bookedCount).to.eql(body.schedule.booked.length);",
+                  "    pm.expect(body.availableCount).to.eql(body.schedule.available.length);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{doctorToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/appointments/doctor/schedule" }
+          }
+        },
+        {
+          "name": "11. Doctor cannot access patient slots endpoint",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('doctor role is forbidden from patient endpoint', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{doctorToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/appointments/patient/available" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authorization failures",
+      "item": [
+        {
+          "name": "12. Reject request without token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('request without token is unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/api/appointments/patient/available" }
+          }
+        }
+      ]
+    }
+  ]
+}
